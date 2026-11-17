@@ -1,55 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SOLMARINA: NEON HEAT</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌴</text></svg>">
   <style>
-    body, html {
+    :root {
+      --neon-orange: #ff781f;
+      --neon-yellow: #fde047;
+      --neon-cyan: #06b6d4;
+      --deep-space: #080c14;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #0f172a;
-      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--deep-space);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
     }
     #canvas-container {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    #hud-layer {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 1;
+    }
+    #hud-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       pointer-events: none;
       z-index: 10;
     }
-    #title-overlay {
+    #hud-stars {
       position: absolute;
-      bottom: 30px;
-      left: 30px;
-      color: #fde047;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      top: 24px;
+      right: 28px;
+      font-size: 26px;
+      color: var(--neon-yellow);
+      text-shadow: 0 0 10px rgba(253, 224, 71, 0.6);
+      display: none;
+      letter-spacing: 2px;
+    }
+    #hud-stats {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      color: #f8fafc;
+      font-size: 15px;
+      font-weight: 700;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      background: rgba(8, 12, 20, 0.6);
+      padding: 12px 18px;
+      border-left: 4px solid var(--neon-orange);
+      border-radius: 4px;
+      display: none;
+      backdrop-filter: blur(4px);
+    }
+    #hud-stats div {
+      margin-bottom: 4px;
+    }
+    #hud-stats div:last-child {
+      margin-bottom: 0;
+    }
+    #wasted-banner {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ef4444;
+      font-size: 56px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 4px 12px rgba(0,0,0,0.9);
+      display: none;
+    }
+    #title-overlay {
+      position: fixed;
+      bottom: 40px;
+      left: 40px;
+      color: #f8fafc;
       pointer-events: none;
       z-index: 20;
+      background: rgba(8, 12, 20, 0.75);
+      padding: 20px 28px;
+      border-left: 5px solid var(--neon-orange);
+      border-radius: 6px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
     }
     #title-overlay h1 {
-      margin: 0 0 5px 0;
-      font-size: 28px;
-      letter-spacing: 2px;
-      font-weight: 800;
-      color: #ff781f;
+      margin: 0 0 6px 0;
+      font-size: 32px;
+      letter-spacing: 3px;
+      font-weight: 900;
+      color: var(--neon-orange);
+      text-shadow: 0 0 15px rgba(255, 120, 31, 0.5);
     }
     #title-overlay p {
       margin: 0;
-      font-size: 14px;
-      color: #f8fafc;
-      letter-spacing: 1px;
+      font-size: 13px;
+      color: var(--neon-yellow);
+      letter-spacing: 2px;
+      font-weight: 600;
     }
   </style>
   <script type="importmap">
@@ -62,18 +126,21 @@
 </head>
 <body>
   <div id="canvas-container"></div>
+  
   <div id="hud-layer">
-    <div id="hud-stars" style="position: absolute; top: 20px; right: 20px; font-size: 24px; color: #fde047; text-shadow: 0 2px 4px rgba(0,0,0,0.8); display: none;">☆☆☆☆☆</div>
-    <div id="hud-stats" style="position: absolute; top: 20px; left: 20px; color: #f8fafc; font-size: 16px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); display: none;">
+    <div id="hud-stars">☆☆☆☆☆</div>
+    <div id="hud-stats">
       <div>HEALTH: <span id="hud-health-val">100</span>%</div>
       <div>CASH: $<span id="hud-cash-val">5000</span></div>
     </div>
-    <div id="wasted-banner" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); color: #ef4444; font-size: 48px; font-weight: 900; text-shadow: 0 4px 8px rgba(0,0,0,0.9); display: none;">WASTED</div>
+    <div id="wasted-banner">WASTED</div>
   </div>
+
   <div id="title-overlay">
     <h1>SOLMARINA: NEON HEAT</h1>
     <p>REX DALTON • PRESS ANY KEY TO DRIVE</p>
   </div>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
