@@ -61,6 +61,19 @@ export class PedestrianManager {
     }
   }
 
+  findNearestPed(pos, maxDist = 3.0) {
+    let nearest = null;
+    let minDist = maxDist;
+    for (const ped of this.peds) {
+      const dist = ped.position.distanceTo(pos);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = ped;
+      }
+    }
+    return nearest;
+  }
+
   update(dt, playerPos, crimePos) {
     const limit = CONFIG.world.blocksX * CONFIG.world.blockSize / 2 - 5;
 

@@ -10,13 +10,24 @@ export const CONFIG = {
     walkSpeed: 5.0,
     runSpeed: 9.0,
     turnSpeed: 10.0,
+    maxHealth: 100,
   },
   economy: {
     startingDebt: 50000,
+    playerCash: 5000,
+    hospitalPenalty: 2500,
   },
   wanted: {
     maxStars: 5,
-    policeSpawnInterval: 10,
+    heatMax: 100,
+    decayRate: 5.0,
+    crimeHeat: {
+      carStolen: 25,
+      pedHit: 30,
+      policeRam: 45,
+      speeding: 10,
+      punchPed: 20
+    }
   },
   missions: {
     rewardPerJob: 10000,
