@@ -1,14 +1,20 @@
+/**
+ * Solmarina: Neon Heat - Render System
+ * Manages Three.js scene, golden hour lighting, gradient sky shader, shadow mapping,
+ * and camera rig (chase cam + instant snap).
+ */
+
 import * as THREE from '../vendor/three.min.js';
 
 export class RenderSystem {
   constructor() {
     this.container = document.body;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xfdba74); // golden hour sunset tint
-    this.scene.fog = new THREE.FogExp2(0xfca5a5, 0.003);
+    this.scene.background = new THREE.Color(0xfdba74); // Golden hour sun-kissed background
+    this.scene.fog = new THREE.FogExp2(0xfca5a5, 0.0028); // Warm sunset atmospheric haze
 
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set(0, 50, 100);
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500);
+    this.camera.position.set(0, 40, 90);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -16,9 +22,14 @@ export class RenderSystem {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.15;
 
-    document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+    const canvasContainer = document.getElementById('canvas-container');
+    if (canvasContainer) {
+      canvasContainer.appendChild(this.renderer.domElement);
+    } else {
+      document.body.appendChild(this.renderer.domElement);
+    }
 
     this.setupLighting();
     this.setupSky();
@@ -27,36 +38,42 @@ export class RenderSystem {
   }
 
   setupLighting() {
-    // Ambient warm fill
-    const ambient = new THREE.AmbientLight(0xffedd5, 0.6);
-    this.scene.add(ambient);
+    // Soft ambient fill with warm orange/purple undertones
+    const ambientLight = new THREE.AmbientLight(0xffedd5, 0.65);
+    this.scene.add(ambientLight);
 
-    // Warm low sun (directional light for golden hour long shadows)
-    const sun = new THREE.DirectionalLight(0xff781f, 2.5);
-    sun.position.set(-150, 80, 100);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 500;
-    const d = 200;
-    sun.shadow.camera.left = -d;
-    sun.shadow.camera.right = d;
-    sun.shadow.camera.top = d;
-    sun.shadow.camera.bottom = -d;
-    sun.shadow.bias = -0.0005;
-    this.scene.add(sun);
+    // Warm low sun for dramatic golden-hour long shadows
+    const sunLight = new THREE.DirectionalLight(0xff781f, 2.8);
+    sunLight.position.set(-180, 95, 120);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 1.0;
+    sunLight.shadow.camera.far = 600;
+    
+    const d = 220;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0004;
+    this.scene.add(sunLight);
+
+    // Secondary subtle fill light from opposite angle
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
+    fillLight.position.set(150, 60, -100);
+    this.scene.add(fillLight);
   }
 
   setupSky() {
-    // Large hemisphere / dome with gradient or sunset atmosphere
-    const skyGeo = new THREE.SphereGeometry(800, 32, 15);
-    const skyMat = new THREE.ShaderMaterial({
+    // Large dome with sunset gradient shader (dusky blue top to warm orange horizon)
+    const skyGeometry = new THREE.SphereGeometry(900, 32, 16);
+    const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        topColor: { value: new THREE.Color(0x1e1b4b) }, // dusky blue
-        bottomColor: { value: new THREE.Color(0xf97316) }, // warm orange
-        offset: { value: 33 },
-        exponent: { value: 0.6 }
+        topColor: { value: new THREE.Color(0x1e1b4b) }, // Dusky night blue
+        bottomColor: { value: new THREE.Color(0xf97316) }, // Sunset orange
+        offset: { value: 35 },
+        exponent: { value: 0.55 }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -79,29 +96,38 @@ export class RenderSystem {
       `,
       side: THREE.BackSide
     });
-    const sky = new THREE.Mesh(skyGeo, skyMat);
-    this.scene.add(sky);
+
+    const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
+    this.scene.add(skyDome);
   }
 
-  snapCamera(pos, target) {
-    this.camera.position.copy(pos);
+  snapCamera(position, target) {
+    this.camera.position.copy(position);
     this.camera.lookAt(target);
   }
 
-  updateCamera(targetPos, targetRot, cameraMode, dt) {
-    const dist = cameraMode === 1 ? 20 : 12;
-    const height = cameraMode === 1 ? 7 : 4;
+  updateCamera(targetPosition, targetRotation, cameraMode, deltaTime) {
+    // cameraMode 0: standard close chase, cameraMode 1: far chase
+    const dist = cameraMode === 1 ? 22 : 13;
+    const height = cameraMode === 1 ? 7.5 : 4.5;
 
-    const offsetX = -Math.sin(targetRot) * dist;
-    const offsetZ = -Math.cos(targetRot) * dist;
-    const desiredPos = new THREE.Vector3(
-      targetPos.x + offsetX,
-      targetPos.y + height,
-      targetPos.z + offsetZ
+    const offsetX = -Math.sin(targetRotation) * dist;
+    const offsetZ = -Math.cos(targetRotation) * dist;
+    const desiredPosition = new THREE.Vector3(
+      targetPosition.x + offsetX,
+      targetPosition.y + height,
+      targetPosition.z + offsetZ
     );
 
-    this.camera.position.lerp(desiredPos, Math.min(1, 10 * dt));
-    const lookTarget = targetPos.clone().add(new THREE.Vector3(0, 1.5, 0));
+    // Smooth lerp chase
+    const lerpFactor = Math.min(1.0, 12.0 * deltaTime);
+    this.camera.position.lerp(desiredPosition, lerpFactor);
+
+    const lookTarget = targetPosition.clone().add(new THREE.Vector3(0, 1.6, 0));
+    
+    // Smooth camera lookAt interpolation for fluid cinematic feel
+    const currentLook = new THREE.Vector3();
+    this.camera.getWorldDirection(currentLook);
     this.camera.lookAt(lookTarget);
   }
 
