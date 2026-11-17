@@ -1,19 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
-<style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOLMARINA: NEON HEAT</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0f172a;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #hud-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #title-overlay {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      color: #fde047;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      pointer-events: none;
+      z-index: 20;
+    }
+    #title-overlay h1 {
+      margin: 0 0 5px 0;
+      font-size: 28px;
+      letter-spacing: 2px;
+      font-weight: 800;
+      color: #ff781f;
+    }
+    #title-overlay p {
+      margin: 0;
+      font-size: 14px;
+      color: #f8fafc;
+      letter-spacing: 1px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.min.js"
+      }
+    }
+  </script>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+  <div id="canvas-container"></div>
+  <div id="hud-layer"></div>
+  <div id="title-overlay">
+    <h1>SOLMARINA: NEON HEAT</h1>
+    <p>REX DALTON • SESSION 1</p>
+  </div>
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>
