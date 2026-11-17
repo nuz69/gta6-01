@@ -88,6 +88,23 @@ export class RenderSystem {
     this.camera.lookAt(target);
   }
 
+  updateCamera(targetPos, targetRot, cameraMode, dt) {
+    const dist = cameraMode === 1 ? 20 : 12;
+    const height = cameraMode === 1 ? 7 : 4;
+
+    const offsetX = -Math.sin(targetRot) * dist;
+    const offsetZ = -Math.cos(targetRot) * dist;
+    const desiredPos = new THREE.Vector3(
+      targetPos.x + offsetX,
+      targetPos.y + height,
+      targetPos.z + offsetZ
+    );
+
+    this.camera.position.lerp(desiredPos, Math.min(1, 10 * dt));
+    const lookTarget = targetPos.clone().add(new THREE.Vector3(0, 1.5, 0));
+    this.camera.lookAt(lookTarget);
+  }
+
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
