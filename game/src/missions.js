@@ -1,169 +1,183 @@
 import * as THREE from '../vendor/three.min.js';
+import { CONFIG } from './config.js';
 
 export class MissionSystem {
   constructor(rng) {
     this.rng = rng;
-    this.missions = [
-      {
-        id: 1,
-        title: "First Fare",
-        briefing: "Vera Kane: 'Rex, I got a nervous client needing a fast ride across town. Get them to the drop-off in time.'",
-        objective: "Drive to the client drop-off point across town.",
-        waypoint: new THREE.Vector3(120, 0, 120),
-        reward: 10000,
-        type: 'waypoint',
-        timeLimit: 120,
-        active: false
-      },
-      {
-        id: 2,
-        title: "Package Run",
-        briefing: "Vera Kane: 'Three package drops are waiting in the district. Collect all three before heat builds up.'",
-        objective: "Collect 3 hidden packages around the city (0/3).",
-        waypoint: new THREE.Vector3(-100, 0, 80),
-        reward: 10000,
-        type: 'packages',
-        packagesNeeded: 3,
-        packagesCollected: 0,
-        active: false
-      },
-      {
-        id: 3,
-        title: "Hot Wheels",
-        briefing: "Vera Kane: 'We need high-end wheels. Steal a sports car from downtown and shake the police tail.'",
-        objective: "Steal a sports car and lose the wanted level.",
-        waypoint: new THREE.Vector3(0, 0, 0),
-        reward: 10000,
-        type: 'hotwheels',
-        active: false
-      },
-      {
-        id: 4,
-        title: "The Getaway",
-        briefing: "Vera Kane: 'The dragnet is out! A 4-star chase is locked on you. Reach the suburban safehouse.'",
-        objective: "Reach the safehouse and shake the police dragnet.",
-        waypoint: new THREE.Vector3(-180, 0, -180),
-        reward: 10000,
-        type: 'getaway',
-        active: false
-      },
-      {
-        id: 5,
-        title: "Neon Heat",
-        briefing: "Vera Kane: 'This is it, Rex. Rob the port vault at the east docks, then escape by boat at the beach.'",
-        objective: "Rob the port vault and escape by boat at the west beach.",
-        waypoint: new THREE.Vector3(200, 0, 0),
-        reward: 10000,
-        type: 'heist',
-        heistPhase: 1, // 1: Port vault, 2: Beach boat
-        active: false
-      }
-    ];
-
-    this.currentMissionIndex = 0;
+    this.cash = CONFIG.economy.playerCash;
+    this.debt = CONFIG.economy.startingDebt;
+    this.currentMissionIndex = -1; // null before start
     this.missionTimer = 0;
     this.sunCoins = [];
+
+    // Build missions from CONFIG.missions.storyMissions as required
+    this.missions = CONFIG.missions.storyMissions.map((sm, index) => {
+      const mission = {
+        id: sm.id,
+        title: sm.title,
+        client: sm.client,
+        reward: sm.reward,
+        desc: sm.desc,
+        active: false,
+        waypoint: new THREE.Vector3(0, 0, 0),
+        type: 'waypoint'
+      };
+
+      // Configure specific mission types and default waypoints
+      if (index === 0) {
+        mission.type = 'waypoint';
+        mission.timeLimit = 120;
+        mission.waypoint.set(140, 0, 140);
+      } else if (index === 1) {
+        mission.type = 'packages';
+        mission.packagesNeeded = 3;
+        mission.packagesCollected = 0;
+        mission.waypoint.set(-120, 0, 90);
+      } else if (index === 2) {
+        mission.type = 'hotwheels';
+        mission.waypoint.set(60, 0, -100);
+      } else if (index === 3) {
+        mission.type = 'getaway';
+        mission.waypoint.set(-180, 0, -180);
+      } else if (index === 4) {
+        mission.type = 'heist';
+        mission.heistPhase = 1; // Phase 1: Port vault; Phase 2: Beach boat
+        mission.waypoint.set(200, 0, 20);
+      }
+      return mission;
+    });
+
     this.generateSunCoins();
   }
 
   generateSunCoins() {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < CONFIG.economy.totalSunCoins; i++) {
       this.sunCoins.push({
         id: i,
         position: new THREE.Vector3(
-          this.rng.range(-200, 200),
+          this.rng.range(-240, 240),
           0.5,
-          this.rng.range(-200, 200)
+          this.rng.range(-240, 240)
         ),
         collected: false
       });
     }
   }
 
+  getCash() {
+    return this.cash;
+  }
+
+  getDebt() {
+    return this.debt;
+  }
+
   getCurrentMission() {
-    if (this.currentMissionIndex >= this.missions.length) return null;
-    return this.missions[this.currentMissionIndex];
+    if (this.currentMissionIndex < 0 || this.currentMissionIndex >= this.missions.length) {
+      return null;
+    }
+    const m = this.missions[this.currentMissionIndex];
+    return m.active ? m : null;
   }
 
   startMission(index) {
-    if (index < 0 || index >= this.missions.length) return false;
+    if (index < 0 || index >= this.missions.length) return null;
     this.currentMissionIndex = index;
     const m = this.missions[index];
     m.active = true;
-    this.missionTimer = m.timeLimit || 300;
+    this.missionTimer = m.timeLimit || 0;
+
     if (m.type === 'packages') {
       m.packagesCollected = 0;
-    }
-    if (m.type === 'heist') {
+      m.waypoint.set(this.rng.range(-150, 150), 0, this.rng.range(-150, 150));
+    } else if (m.type === 'heist') {
       m.heistPhase = 1;
-      m.waypoint.set(200, 0, 50); // Port vault
+      m.waypoint.set(200, 0, 20);
     }
     return m;
   }
 
-  update(dt, playerPos, activeCar, policeStars) {
-    const m = this.getCurrentMission();
-    if (!m || !m.active) return { status: 'idle' };
+  collectReward(mission) {
+    if (!mission || !mission.reward) return;
+    this.cash += mission.reward;
+    this.debt = Math.max(0, this.debt - mission.reward);
+  }
 
-    if (m.timeLimit) {
-      this.missionTimer -= dt;
-      if (this.missionTimer <= 0) {
-        m.active = false;
-        return { status: 'failed', reason: 'Time expired' };
+  update(dt, playerPos, activeCar, policeStars) {
+    // Check sun coins collection regardless of active mission state
+    const pos = activeCar ? activeCar.position : playerPos;
+    for (const coin of this.sunCoins) {
+      if (!coin.collected && pos.distanceTo(coin.position) < 4.0) {
+        coin.collected = true;
+        this.cash += CONFIG.economy.sunCoinReward;
+        return { status: 'coin_collected', coinId: coin.id, sunCoinsRemaining: this.sunCoins.filter(c => !c.collected).length };
       }
     }
 
-    const pos = activeCar ? activeCar.position : playerPos;
+    const m = this.getCurrentMission();
+    if (!m || !m.active) {
+      return { status: 'idle' };
+    }
+
+    // Handle timer for timed missions (e.g. M1)
+    if (m.timeLimit && m.active) {
+      this.missionTimer -= dt;
+      if (this.missionTimer <= 0) {
+        m.active = false;
+        return { status: 'failed', mission: m, reason: 'Mission timer expired' };
+      }
+    }
+
     const dist = pos.distanceTo(m.waypoint);
 
-    if (m.type === 'waypoint' || m.type === 'getaway') {
-      if (dist < 6.0) {
-        if (m.type === 'getaway' && policeStars > 0) {
-          // Cannot finish getaway while police stars active
-          return { status: 'progress', message: 'Shake the police before entering safehouse!' };
+    if (m.type === 'waypoint') {
+      if (dist < 6.5) {
+        m.active = false;
+        return { status: 'completed', mission: m };
+      }
+    } else if (m.type === 'getaway') {
+      if (dist < 6.5) {
+        if (policeStars > 0) {
+          return { status: 'progress', mission: m, message: 'Shake the police before entering safehouse!' };
         }
         m.active = false;
         return { status: 'completed', mission: m };
       }
     } else if (m.type === 'hotwheels') {
-      // Check if player is in a sports car and stars == 0
-      if (activeCar && activeCar.typeKey === 'sports' && policeStars === 0) {
-        m.active = false;
-        return { status: 'completed', mission: m };
-      }
-    } else if (m.type === 'heist') {
-      if (m.heistPhase === 1 && dist < 6.0) {
-        m.heistPhase = 2;
-        m.waypoint.set(-240, 0, 0); // Beach boat
-        m.objective = "Escape by boat at the western beach!";
-        return { status: 'progress', message: 'Vault robbed! Head to the beach boat escape!' };
-      } else if (m.heistPhase === 2 && dist < 6.0) {
-        m.active = false;
-        return { status: 'completed', mission: m };
+      const inSportsCar = activeCar && activeCar.typeKey === 'sports';
+      if (inSportsCar && policeStars === 0) {
+        if (dist < 8.0) {
+          m.active = false;
+          return { status: 'completed', mission: m };
+        }
       }
     } else if (m.type === 'packages') {
-      if (dist < 6.0) {
+      if (dist < 6.5) {
         m.packagesCollected++;
         if (m.packagesCollected >= m.packagesNeeded) {
           m.active = false;
           return { status: 'completed', mission: m };
         } else {
-          // Move waypoint for next package
-          m.waypoint.set(this.rng.range(-150, 150), 0, this.rng.range(-150, 150));
-          m.objective = `Collect 3 hidden packages around the city (${m.packagesCollected}/3).`;
-          return { status: 'progress', message: `Package collected (${m.packagesCollected}/3)` };
+          // Relocate waypoint for next package
+          m.waypoint.set(this.rng.range(-160, 160), 0, this.rng.range(-160, 160));
+          return { status: 'progress', mission: m, message: `Package collected (${m.packagesCollected}/${m.packagesNeeded})` };
+        }
+      }
+    } else if (m.type === 'heist') {
+      if (m.heistPhase === 1) {
+        if (dist < 6.5) {
+          m.heistPhase = 2;
+          m.waypoint.set(-240, 0, -20); // Western beach boat escape
+          return { status: 'progress', mission: m, message: 'Vault robbed! Head to the beach boat escape!' };
+        }
+      } else if (m.heistPhase === 2) {
+        if (dist < 6.5) {
+          m.active = false;
+          return { status: 'completed', mission: m };
         }
       }
     }
 
-    // Check sun coins collection
-    for (const coin of this.sunCoins) {
-      if (!coin.collected && pos.distanceTo(coin.position) < 3.5) {
-        coin.collected = true;
-        return { status: 'coin_collected', coinId: coin.id };
-      }
-    }
-
-    return { status: 'running' };
+    return { status: 'running', mission: m, timer: this.missionTimer };
   }
 }

@@ -7,6 +7,7 @@ import { Player } from './player.js';
 import { VehicleManager } from './vehicles.js';
 import { PedestrianManager } from './peds.js';
 import { PoliceSystem } from './police.js';
+import { MissionSystem } from './missions.js';
 
 class NeonHeatGame {
   constructor() {
@@ -49,6 +50,8 @@ class NeonHeatGame {
     this.police = new PoliceSystem(this.world, this.rng);
     this.renderer.scene.add(this.police.group);
 
+    this.missions = new MissionSystem(this.rng);
+
     this.setupInput();
     this.setupUIHandlers();
 
@@ -63,10 +66,15 @@ class NeonHeatGame {
       getPeds: () => this.pedManager,
       getActiveCar: () => this.activeCar,
       getPolice: () => this.police,
+      getMissions: () => this.missions,
       enterExitCar: () => this.handleEnterExitCar(),
       debug: {
         forcePlay: () => {
           this.state = 'playing';
+          const cur = this.missions.getCurrentMission();
+          if (!cur || !cur.active) {
+            this.missions.startMission(0);
+          }
         },
         enterExitCar: () => this.handleEnterExitCar(),
         setInputKey: (k, v) => {
@@ -122,6 +130,10 @@ class NeonHeatGame {
     this.state = 'playing';
     const overlay = document.getElementById('title-overlay');
     if (overlay) overlay.style.display = 'none';
+    const cur = this.missions.getCurrentMission();
+    if (!cur || !cur.active) {
+      this.missions.startMission(0);
+    }
   }
 
   setupInput() {
@@ -236,6 +248,16 @@ class NeonHeatGame {
 
       // Update police simulation
       this.police.update(deltaTime, this.player.position, this.activeCar, this.vehicleManager, this.player);
+
+      // Update missions
+      const missionResult = this.missions.update(deltaTime, this.player.position, this.activeCar, this.police.stars);
+      if (missionResult.status === 'completed') {
+        this.missions.collectReward(missionResult.mission);
+        const nextIdx = this.missions.currentMissionIndex + 1;
+        if (nextIdx < this.missions.missions.length) {
+          this.missions.startMission(nextIdx);
+        }
+      }
 
       // Drive third-person chase camera from active car or player position and heading
       const targetPos = this.activeCar ? this.activeCar.position : this.player.position;
