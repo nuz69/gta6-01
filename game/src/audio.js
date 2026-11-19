@@ -1,3 +1,7 @@
+/**
+ * AudioSystem - Web Audio API procedural sound effects and engine/siren synthesizer
+ * SOLMARINA: NEON HEAT
+ */
 export class AudioSystem {
   constructor() {
     this.ctx = null;
@@ -13,59 +17,75 @@ export class AudioSystem {
   init() {
     if (this.initialized) return;
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
-        this.initialized = true;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      this.ctx = new AudioContextClass();
+      this.initialized = true;
 
-        // Create continuous engine hum nodes
-        this.engineGain = this.ctx.createGain();
-        this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
-        this.engineGain.connect(this.ctx.destination);
+      // Engine hum oscillator (sawtooth)
+      this.engineGain = this.ctx.createGain();
+      this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      this.engineGain.connect(this.ctx.destination);
 
-        this.engineOsc = this.ctx.createOscillator();
-        this.engineOsc.type = 'sawtooth';
-        this.engineOsc.frequency.setValueAtTime(60, this.ctx.currentTime);
-        this.engineOsc.connect(this.engineGain);
-        this.engineOsc.start();
+      this.engineOsc = this.ctx.createOscillator();
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
+      this.engineOsc.connect(this.engineGain);
+      this.engineOsc.start();
 
-        // Create police siren nodes
-        this.sirenGain = this.ctx.createGain();
-        this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
-        this.sirenGain.connect(this.ctx.destination);
+      // Police siren oscillator (sine wave sweeping)
+      this.sirenGain = this.ctx.createGain();
+      this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      this.sirenGain.connect(this.ctx.destination);
 
-        this.sirenOsc = this.ctx.createOscillator();
-        this.sirenOsc.type = 'sine';
-        this.sirenOsc.frequency.setValueAtTime(600, this.ctx.currentTime);
-        this.sirenOsc.connect(this.sirenGain);
-        this.sirenOsc.start();
-      }
-    } catch (e) {
-      // Audio not supported or blocked
+      this.sirenOsc = this.ctx.createOscillator();
+      this.sirenOsc.type = 'sine';
+      this.sirenOsc.frequency.setValueAtTime(600, this.ctx.currentTime);
+      this.sirenOsc.connect(this.sirenGain);
+      this.sirenOsc.start();
+    } catch (err) {
+      console.warn('WebAudio initialization failed:', err);
     }
   }
 
   setMuted(muted) {
-    this.muted = muted;
-    if (this.ctx && this.ctx.state === 'suspended' && !muted) {
-      this.ctx.resume();
+    this.muted = !!muted;
+    if (this.ctx && this.ctx.state === 'suspended' && !this.muted) {
+      this.ctx.resume().catch(() => {});
     }
+    if (this.muted) {
+      if (this.engineGain && this.ctx) {
+        this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      }
+      if (this.sirenGain && this.ctx) {
+        this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      }
+    }
+  }
+
+  isMuted() {
+    return this.muted;
+  }
+
+  getEngineFreq() {
+    return this.engineOsc && this.engineOsc.frequency ? this.engineOsc.frequency.value : 0;
   }
 
   playClick() {
     if (this.muted || !this.initialized || !this.ctx) return;
     try {
+      const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.05);
-      gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+      osc.frequency.setValueAtTime(750, now);
+      osc.frequency.exponentialRampToValueAtTime(350, now + 0.04);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.05);
+      osc.start(now);
+      osc.stop(now + 0.04);
     } catch (e) {}
   }
 
@@ -76,15 +96,14 @@ export class AudioSystem {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-      osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.setValueAtTime(880.00, now + 0.09); // A5
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.3);
+      osc.stop(now + 0.25);
     } catch (e) {}
   }
 
@@ -95,14 +114,14 @@ export class AudioSystem {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'square';
-      osc.frequency.setValueAtTime(120, now);
-      osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.frequency.setValueAtTime(110, now);
+      osc.frequency.exponentialRampToValueAtTime(25, now + 0.12);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.15);
+      osc.stop(now + 0.12);
     } catch (e) {}
   }
 
@@ -112,10 +131,11 @@ export class AudioSystem {
       this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
       return;
     }
-    const freq = 50 + Math.abs(speed) * 4;
-    const vol = Math.min(0.25, 0.05 + Math.abs(speed) * 0.005);
-    this.engineOsc.frequency.setTargetAtTime(Math.min(400, freq), this.ctx.currentTime, 0.1);
-    this.engineGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.1);
+    const absSpeed = Math.abs(speed);
+    const targetFreq = Math.min(380, 50 + absSpeed * 3.5);
+    const targetVol = Math.min(0.2, 0.04 + absSpeed * 0.004);
+    this.engineOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.08);
+    this.engineGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.08);
   }
 
   updateSiren(policeActive, dt) {
@@ -124,9 +144,9 @@ export class AudioSystem {
       this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
       return;
     }
-    this.sirenTime += dt * 3.5;
-    const freq = 600 + Math.sin(this.sirenTime) * 350;
-    this.sirenOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
-    this.sirenGain.gain.setTargetAtTime(0.2, this.ctx.currentTime, 0.05);
+    this.sirenTime += (dt || 0.016) * 4.0;
+    const sirenFreq = 550 + Math.sin(this.sirenTime) * 320;
+    this.sirenOsc.frequency.setTargetAtTime(sirenFreq, this.ctx.currentTime, 0.05);
+    this.sirenGain.gain.setTargetAtTime(0.18, this.ctx.currentTime, 0.05);
   }
 }

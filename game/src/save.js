@@ -1,7 +1,10 @@
+/**
+ * SaveSystem - LocalStorage state persistence for SOLMARINA: NEON HEAT
+ */
 export class SaveSystem {
   constructor() {
     this.key = 'solmarina_neon_heat_save_v1';
-    this.defaultData = {
+    this.defaults = {
       cash: 5000,
       debt: 50000,
       currentMission: 1,
@@ -18,12 +21,12 @@ export class SaveSystem {
       const raw = localStorage.getItem(this.key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        return { ...this.defaultData, ...parsed };
+        return { ...this.defaults, ...parsed };
       }
     } catch (e) {
-      // Fail silently if localStorage unavailable
+      // Fail silently when localStorage unavailable
     }
-    return { ...this.defaultData };
+    return { ...this.defaults };
   }
 
   save(gameData) {
@@ -33,12 +36,13 @@ export class SaveSystem {
     } catch (e) {
       // Fail silently
     }
+    return this.data;
   }
 
   clear() {
     try {
       localStorage.removeItem(this.key);
-      this.data = { ...this.defaultData };
+      this.data = { ...this.defaults };
     } catch (e) {
       // Fail silently
     }
