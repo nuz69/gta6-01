@@ -6,6 +6,7 @@ import { SeederRNG } from './random.js';
 import { Player } from './player.js';
 import { VehicleManager } from './vehicles.js';
 import { PedestrianManager } from './peds.js';
+import { PoliceSystem } from './police.js';
 
 class NeonHeatGame {
   constructor() {
@@ -45,6 +46,9 @@ class NeonHeatGame {
     this.pedManager = new PedestrianManager(this.world, this.rng);
     this.renderer.scene.add(this.pedManager.group);
 
+    this.police = new PoliceSystem(this.world, this.rng);
+    this.renderer.scene.add(this.police.group);
+
     this.setupInput();
     this.setupUIHandlers();
 
@@ -58,6 +62,7 @@ class NeonHeatGame {
       getVehicles: () => this.vehicleManager,
       getPeds: () => this.pedManager,
       getActiveCar: () => this.activeCar,
+      getPolice: () => this.police,
       enterExitCar: () => this.handleEnterExitCar(),
       debug: {
         forcePlay: () => {
@@ -186,6 +191,7 @@ class NeonHeatGame {
         this.activeCar = nearestCar;
         // Hide player mesh while driving
         this.player.group.visible = false;
+        this.police.addHeat(CONFIG.wanted.crimeHeat.carStolen);
       }
     }
   }
@@ -227,6 +233,9 @@ class NeonHeatGame {
 
       // Update pedestrian simulation
       this.pedManager.update(deltaTime, this.player.position, null);
+
+      // Update police simulation
+      this.police.update(deltaTime, this.player.position, this.activeCar, this.vehicleManager, this.player);
 
       // Drive third-person chase camera from active car or player position and heading
       const targetPos = this.activeCar ? this.activeCar.position : this.player.position;
