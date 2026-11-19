@@ -5,6 +5,7 @@ import { CONFIG } from './config.js';
 import { SeederRNG } from './random.js';
 import { Player } from './player.js';
 import { VehicleManager } from './vehicles.js';
+import { PedestrianManager } from './peds.js';
 
 class NeonHeatGame {
   constructor() {
@@ -41,6 +42,9 @@ class NeonHeatGame {
     this.vehicleManager = new VehicleManager(this.world, this.rng);
     this.renderer.scene.add(this.vehicleManager.group);
 
+    this.pedManager = new PedestrianManager(this.world, this.rng);
+    this.renderer.scene.add(this.pedManager.group);
+
     this.setupInput();
     this.setupUIHandlers();
 
@@ -52,6 +56,7 @@ class NeonHeatGame {
       getRenderer: () => this.renderer,
       getPlayer: () => this.player,
       getVehicles: () => this.vehicleManager,
+      getPeds: () => this.pedManager,
       getActiveCar: () => this.activeCar,
       enterExitCar: () => this.handleEnterExitCar(),
       debug: {
@@ -75,7 +80,8 @@ class NeonHeatGame {
           roadsCount: this.world.roads.length,
           spawnPointsCount: this.world.spawnPoints.length,
           vehiclesCount: this.vehicleManager.vehicles.length,
-          trafficCount: this.vehicleManager.vehicles.filter(v => v.isTraffic).length
+          trafficCount: this.vehicleManager.vehicles.filter(v => v.isTraffic).length,
+          pedestriansCount: this.pedManager.peds.length
         })
       }
     };
@@ -148,6 +154,8 @@ class NeonHeatGame {
       }
       if ((code === 'KeyF' || key === 'f') && !this.activeCar) {
         this.player.punch();
+        const hitPed = this.pedManager.findNearestPed(this.player.position, 2.5);
+        if (hitPed) { hitPed.state = 'fleeing'; }
       }
       if (code === 'KeyE' || key === 'e') {
         this.handleEnterExitCar();
@@ -216,6 +224,9 @@ class NeonHeatGame {
 
       // Update vehicle simulation (traffic + active car physics)
       this.vehicleManager.update(deltaTime, this.player, this.activeCar, this.input);
+
+      // Update pedestrian simulation
+      this.pedManager.update(deltaTime, this.player.position, null);
 
       // Drive third-person chase camera from active car or player position and heading
       const targetPos = this.activeCar ? this.activeCar.position : this.player.position;
