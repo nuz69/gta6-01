@@ -8,6 +8,7 @@ import { VehicleManager } from './vehicles.js';
 import { PedestrianManager } from './peds.js';
 import { PoliceSystem } from './police.js';
 import { MissionSystem } from './missions.js';
+import { HudSystem } from './hud.js';
 
 class NeonHeatGame {
   constructor() {
@@ -16,6 +17,7 @@ class NeonHeatGame {
     this.activeCar = null;
     this.lastTime = performance.now();
     this.orbitAngle = 0;
+    this.isWasted = false;
 
     this.input = {
       keys: {},
@@ -51,6 +53,7 @@ class NeonHeatGame {
     this.renderer.scene.add(this.police.group);
 
     this.missions = new MissionSystem(this.rng);
+    this.hud = new HudSystem();
 
     this.setupInput();
     this.setupUIHandlers();
@@ -67,10 +70,12 @@ class NeonHeatGame {
       getActiveCar: () => this.activeCar,
       getPolice: () => this.police,
       getMissions: () => this.missions,
+      getHud: () => this.hud,
       enterExitCar: () => this.handleEnterExitCar(),
       debug: {
         forcePlay: () => {
           this.state = 'playing';
+          this.hud.showState('playing');
           const cur = this.missions.getCurrentMission();
           if (!cur || !cur.active) {
             this.missions.startMission(0);
@@ -102,11 +107,14 @@ class NeonHeatGame {
     // If a shot or seed parameter is specified, transition immediately for rendering
     if (shotName || seedParam) {
       this.state = 'playing';
+      this.hud.showState('playing');
       if (shotName === 'smoke' || shotName === '1-start') {
         this.renderer.snapCamera(new THREE.Vector3(0, 140, 200), new THREE.Vector3(0, 0, 0));
       } else {
         this.renderer.snapCamera(new THREE.Vector3(60, 90, 140), new THREE.Vector3(0, 0, 0));
       }
+    } else {
+      this.hud.showState('attract');
     }
 
     // Start render loop & 60fps tick fallback
@@ -128,6 +136,7 @@ class NeonHeatGame {
 
   startGame() {
     this.state = 'playing';
+    this.hud.showState('playing');
     const overlay = document.getElementById('title-overlay');
     if (overlay) overlay.style.display = 'none';
     const cur = this.missions.getCurrentMission();
@@ -146,8 +155,10 @@ class NeonHeatGame {
       if (e.code === 'Escape' || e.key === 'Escape') {
         if (this.state === 'playing') {
           this.state = 'paused';
+          this.hud.showState('paused');
         } else if (this.state === 'paused') {
           this.state = 'playing';
+          this.hud.showState('playing');
         }
         return;
       }
@@ -215,6 +226,49 @@ class NeonHeatGame {
         this.startGame();
       });
     }
+
+    const resumeBtn = document.getElementById('pause-resume-btn');
+    if (resumeBtn) {
+      resumeBtn.addEventListener('click', () => {
+        this.state = 'playing';
+        this.hud.showState('playing');
+      });
+    }
+
+    const restartBtn = document.getElementById('pause-restart-btn');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => {
+        this.missions.startMission(this.missions.currentMissionIndex);
+        this.state = 'playing';
+        this.hud.hideOverlays();
+        this.hud.showState('playing');
+      });
+    }
+
+    const titleBtn = document.getElementById('pause-title-btn');
+    if (titleBtn) {
+      titleBtn.addEventListener('click', () => {
+        this.state = 'attract';
+        this.hud.showState('attract');
+      });
+    }
+
+    const mcContinueBtn = document.getElementById('mc-continue-btn');
+    if (mcContinueBtn) {
+      mcContinueBtn.addEventListener('click', () => {
+        this.hud.hideOverlays();
+        this.hud.showState('playing');
+      });
+    }
+
+    const mfRetryBtn = document.getElementById('mf-retry-btn');
+    if (mfRetryBtn) {
+      mfRetryBtn.addEventListener('click', () => {
+        this.hud.hideOverlays();
+        this.hud.showState('playing');
+        this.missions.startMission(this.missions.currentMissionIndex);
+      });
+    }
   }
 
   tick(deltaTime) {
@@ -231,32 +285,76 @@ class NeonHeatGame {
       
       this.renderer.snapCamera(targetPos, centerTarget);
     } else if (this.state === 'playing') {
-      if (this.activeCar) {
-        // Player is driving active car
-        this.player.position.copy(this.activeCar.position);
-        this.player.group.position.copy(this.activeCar.position);
-      } else {
-        // Update player movement and physics on foot
-        this.player.update(deltaTime, this.input, this.renderer.camera);
-      }
-
-      // Update vehicle simulation (traffic + active car physics)
-      this.vehicleManager.update(deltaTime, this.player, this.activeCar, this.input);
-
-      // Update pedestrian simulation
-      this.pedManager.update(deltaTime, this.player.position, null);
-
-      // Update police simulation
-      this.police.update(deltaTime, this.player.position, this.activeCar, this.vehicleManager, this.player);
-
-      // Update missions
-      const missionResult = this.missions.update(deltaTime, this.player.position, this.activeCar, this.police.stars);
-      if (missionResult.status === 'completed') {
-        this.missions.collectReward(missionResult.mission);
-        const nextIdx = this.missions.currentMissionIndex + 1;
-        if (nextIdx < this.missions.missions.length) {
-          this.missions.startMission(nextIdx);
+      if (this.player.health <= 0) {
+        if (!this.isWasted) {
+          this.isWasted = true;
+          this.hud.showWasted();
+          this.police.setWanted(0);
+          this.missions.cash = Math.max(0, this.missions.cash - 2500);
+          this.player.health = 100;
+          if (this.activeCar) {
+            this.activeCar = null;
+            this.player.group.visible = true;
+          }
+          const spawn = (this.world.spawnPoints && this.world.spawnPoints[0]) ? this.world.spawnPoints[0] : new THREE.Vector3(0,0,0);
+          this.player.position.copy(spawn);
+          this.player.group.position.copy(spawn);
+          setTimeout(() => {
+            this.isWasted = false;
+            this.hud.hideOverlays();
+            this.hud.showState('playing');
+          }, 2000);
         }
+      } else {
+        if (this.activeCar) {
+          // Player is driving active car
+          this.player.position.copy(this.activeCar.position);
+          this.player.group.position.copy(this.activeCar.position);
+        } else {
+          // Update player movement and physics on foot
+          this.player.update(deltaTime, this.input, this.renderer.camera);
+        }
+
+        // Update vehicle simulation (traffic + active car physics)
+        this.vehicleManager.update(deltaTime, this.player, this.activeCar, this.input);
+
+        // Update pedestrian simulation
+        this.pedManager.update(deltaTime, this.player.position, null);
+
+        // Update police simulation
+        this.police.update(deltaTime, this.player.position, this.activeCar, this.vehicleManager, this.player);
+
+        // Update missions
+        const missionResult = this.missions.update(deltaTime, this.player.position, this.activeCar, this.police.stars);
+        if (missionResult.status === 'completed') {
+          this.missions.collectReward(missionResult.mission);
+          this.hud.showMissionComplete(missionResult.mission.reward, this.missions.getDebt());
+          const nextIdx = this.missions.currentMissionIndex + 1;
+          if (nextIdx < this.missions.missions.length) {
+            this.missions.startMission(nextIdx);
+          }
+        } else if (missionResult.status === 'failed') {
+          this.hud.showMissionFailed(missionResult.reason || 'Mission failed');
+        }
+
+        // Update HUD & minimap
+        const curMission = this.missions.getCurrentMission();
+        const waypoint = (curMission && curMission.active) ? curMission.targetPosition : null;
+        this.hud.updateHUD({
+          health: this.player.health,
+          cash: this.missions.getCash(),
+          debt: this.missions.getDebt(),
+          speed: this.activeCar ? this.activeCar.speed : 0,
+          policeStars: this.police.stars,
+          mission: curMission
+        });
+        this.hud.updateMinimap(
+          this.player.position,
+          this.activeCar ? this.activeCar.rotation : this.player.rotationY,
+          waypoint,
+          this.police.policeCars,
+          this.missions.sunCoins
+        );
       }
 
       // Drive third-person chase camera from active car or player position and heading
