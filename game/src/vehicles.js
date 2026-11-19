@@ -167,14 +167,14 @@ export class VehicleManager {
         if (throttle !== 0) {
           car.speed += throttle * spec.accel * dt;
         } else {
-          car.speed *= isHandbrake ? 0.85 : 0.96; // friction / handbrake
+          car.speed *= isHandbrake ? Math.pow(0.85, dt * 60) : Math.pow(0.96, dt * 60); // friction / handbrake
         }
 
         car.speed = Math.max(-spec.topSpeed * 0.35, Math.min(spec.topSpeed, car.speed));
 
         if (Math.abs(car.speed) > 0.4) {
           const turnRate = spec.handling * 0.035 * (car.speed / spec.topSpeed);
-          car.rotation += steerInput * turnRate;
+          car.rotation += steerInput * turnRate * (dt * 60);
         }
 
         const forward = new THREE.Vector3(Math.sin(car.rotation), 0, Math.cos(car.rotation));

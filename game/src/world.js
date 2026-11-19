@@ -48,7 +48,7 @@ export class World {
     const totalDepth = blocksZ * blockSize;
 
     // Materials
-    const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.85 });
+    const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x52525b, roughness: 0.85 });
     const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
     
     const windowTex = this.createWindowTexture();
@@ -57,7 +57,7 @@ export class World {
     
     const beachMaterial = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.95 });
     const oceanMaterial = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.15, metalness: 0.2 });
-    const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.9 });
+    const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.9 });
 
     // 1. Ocean on the West edge (-X)
     const oceanGeo = new THREE.PlaneGeometry(800, totalDepth + 600);
@@ -176,6 +176,28 @@ export class World {
         xStart: -totalWidth / 2 - 25,
         xEnd: totalWidth / 2 + 25
       });
+    }
+
+    // Add road markings (pale centre dashes)
+    const dashMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    for (const r of this.roads) {
+      if (r.type === 'vertical') {
+        for (let z = r.zStart; z < r.zEnd; z += 8) {
+          const dashGeo = new THREE.PlaneGeometry(0.3, 3);
+          const dash = new THREE.Mesh(dashGeo, dashMat);
+          dash.rotation.x = -Math.PI / 2;
+          dash.position.set(r.x, 0.22, z);
+          this.group.add(dash);
+        }
+      } else {
+        for (let x = r.xStart; x < r.xEnd; x += 8) {
+          const dashGeo = new THREE.PlaneGeometry(3, 0.3);
+          const dash = new THREE.Mesh(dashGeo, dashMat);
+          dash.rotation.x = -Math.PI / 2;
+          dash.position.set(x, 0.22, r.z);
+          this.group.add(dash);
+        }
+      }
     }
 
     // 6. Default spawn points
