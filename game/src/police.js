@@ -237,7 +237,8 @@ export class PoliceSystem {
       // Alternating emergency siren light bar (red / blue strobe)
       const lb = car.mesh.userData.lightBarMesh;
       if (lb) {
-        const red = Math.floor(performance.now() / 140) % 2 === 0;
+        car.flashPhase = (car.flashPhase || 0) + dt;
+        const red = Math.floor(car.flashPhase / 0.15) % 2 === 0;
         lb.material.color.setHex(red ? 0xef4444 : 0x3b82f6);
         lb.material.emissive.setHex(red ? 0xef4444 : 0x3b82f6);
       }

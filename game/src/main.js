@@ -11,6 +11,7 @@ import { MissionSystem } from './missions.js';
 import { HudSystem } from './hud.js';
 import { AudioSystem } from './audio.js';
 import { SaveSystem } from './save.js';
+import { stageShot } from './shots.js';
 
 class NeonHeatGame {
   constructor() {
@@ -20,6 +21,7 @@ class NeonHeatGame {
     this.lastTime = performance.now();
     this.orbitAngle = 0;
     this.isWasted = false;
+    this.shotFrozen = false;
 
     this.input = {
       keys: {},
@@ -123,15 +125,25 @@ class NeonHeatGame {
 
     // If a shot or seed parameter is specified, transition immediately for rendering
     if (shotName || seedParam) {
-      this.state = 'playing';
-      this.hud.showState('playing');
-      if (shotName === 'smoke' || shotName === '1-start') {
-        this.renderer.snapCamera(new THREE.Vector3(0, 140, 200), new THREE.Vector3(0, 0, 0));
+      if (['cover', 'onfoot', 'chase', 'beach'].includes(shotName)) {
+        stageShot(this, shotName, seed);
       } else {
-        this.renderer.snapCamera(new THREE.Vector3(60, 90, 140), new THREE.Vector3(0, 0, 0));
+        this.state = 'playing';
+        this.hud.showState('playing');
+        if (shotName === 'smoke' || shotName === '1-start') {
+          this.renderer.snapCamera(new THREE.Vector3(0, 140, 200), new THREE.Vector3(0, 0, 0));
+        } else {
+          this.renderer.snapCamera(new THREE.Vector3(60, 90, 140), new THREE.Vector3(0, 0, 0));
+        }
+        requestAnimationFrame(() => {
+          window.__shotReady = true;
+        });
       }
     } else {
       this.hud.showState('attract');
+      requestAnimationFrame(() => {
+        window.__shotReady = true;
+      });
     }
 
     // Start render loop & 60fps tick fallback
@@ -144,11 +156,6 @@ class NeonHeatGame {
       this.lastTime = currentTime;
       this.tick(deltaTime);
     }, 16);
-
-    // Signal shot readiness on next frame render
-    requestAnimationFrame(() => {
-      window.__shotReady = true;
-    });
   }
 
   startGame() {
@@ -441,6 +448,11 @@ class NeonHeatGame {
 
   animate(currentTime) {
     requestAnimationFrame(this.animate);
+
+    if (this.shotFrozen) {
+      this.renderer.render();
+      return;
+    }
 
     const deltaTime = Math.min(0.1, (currentTime - this.lastTime) / 1000);
     this.lastTime = currentTime;
