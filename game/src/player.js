@@ -2,8 +2,8 @@ import * as THREE from '../vendor/three.min.js';
 import { CONFIG } from './config.js';
 
 export class Player {
-  constructor(world) {
-    this.world = world;
+  constructor(envWorld) {
+    this.world = envWorld;
     this.group = new THREE.Group();
     this.position = new THREE.Vector3(0, 0, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
@@ -11,190 +11,180 @@ export class Player {
 
     this.health = 100;
     this.maxHealth = 100;
-    this.invulnTimer = 0;
+    this.invulnCooldown = 0;
+    this.isDead = false;
 
-    this.isGrounded = true;
-    this.isRun = false;
-    this.isPunching = false;
+    this.grounded = true;
+    this.running = false;
+    this.punching = false;
     this.punchTimer = 0;
 
-    this.walkCycle = 0;
-    this.radius = 0.8; // collision radius
+    this.strideCycle = 0;
+    this.collisionRadius = 0.75;
 
-    this.buildMesh();
+    this._constructRexMesh();
   }
 
-  buildMesh() {
-    // Rex Dalton character model (geometry)
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff781f, roughness: 0.7 }); // orange jacket
-    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 }); // dark trousers
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.6 }); // head/skin
+  _constructRexMesh() {
+    // Rex Dalton protagonist character model (original geometry composition)
+    const jacketMat = new THREE.MeshStandardMaterial({ color: 0xe65c00, roughness: 0.6 }); // vibrant neon orange jacket
+    const trousersMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 }); // dark slate pants
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.5 }); // warm skin tone
+    const shoeMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 });
 
     // Torso
-    const torsoGeo = new THREE.BoxGeometry(0.8, 1.0, 0.4);
-    this.torso = new THREE.Mesh(torsoGeo, bodyMat);
-    this.torso.position.set(0, 1.2, 0);
-    this.torso.castShadow = true;
-    this.group.add(this.torso);
+    const torsoGeo = new THREE.BoxGeometry(0.75, 0.95, 0.35);
+    this.torsoMesh = new THREE.Mesh(torsoGeo, jacketMat);
+    this.torsoMesh.position.set(0, 1.15, 0);
+    this.torsoMesh.castShadow = true;
+    this.group.add(this.torsoMesh);
 
     // Head
-    const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    this.head = new THREE.Mesh(headGeo, skinMat);
-    this.head.position.set(0, 1.9, 0);
-    this.head.castShadow = true;
-    this.group.add(this.head);
+    const headGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
+    this.headMesh = new THREE.Mesh(headGeo, skinMat);
+    this.headMesh.position.set(0, 1.80, 0);
+    this.headMesh.castShadow = true;
+    this.group.add(this.headMesh);
 
-    // Limbs
-    const limbMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
-    const armGeo = new THREE.BoxGeometry(0.25, 0.8, 0.25);
-    const legGeo = new THREE.BoxGeometry(0.3, 0.9, 0.3);
-
-    this.leftArm = new THREE.Mesh(armGeo, bodyMat);
-    this.leftArm.position.set(-0.55, 1.2, 0);
+    // Arms
+    const armGeo = new THREE.BoxGeometry(0.22, 0.75, 0.22);
+    this.leftArm = new THREE.Mesh(armGeo, jacketMat);
+    this.leftArm.position.set(-0.52, 1.15, 0);
     this.group.add(this.leftArm);
 
-    this.rightArm = new THREE.Mesh(armGeo, bodyMat);
-    this.rightArm.position.set(0.55, 1.2, 0);
+    this.rightArm = new THREE.Mesh(armGeo, jacketMat);
+    this.rightArm.position.set(0.52, 1.15, 0);
     this.group.add(this.rightArm);
 
-    this.leftLeg = new THREE.Mesh(legGeo, pantsMat);
-    this.leftLeg.position.set(-0.25, 0.45, 0);
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.28, 0.85, 0.28);
+    this.leftLeg = new THREE.Mesh(legGeo, trousersMat);
+    this.leftLeg.position.set(-0.22, 0.42, 0);
     this.group.add(this.leftLeg);
 
-    this.rightLeg = new THREE.Mesh(legGeo, pantsMat);
-    this.rightLeg.position.set(0.25, 0.45, 0);
+    this.rightLeg = new THREE.Mesh(legGeo, trousersMat);
+    this.rightLeg.position.set(0.22, 0.42, 0);
     this.group.add(this.rightLeg);
 
     this.group.position.copy(this.position);
   }
 
-  update(dt, input, camera) {
-    if (this.invulnTimer > 0) {
-      this.invulnTimer -= dt;
+  update(dt, inputState, activeCamera) {
+    if (this.invulnCooldown > 0) {
+      this.invulnCooldown -= dt;
     }
 
-    // Punch timer & animation
-    if (this.isPunching) {
+    // Handle punch animation decay
+    if (this.punching) {
       this.punchTimer -= dt;
-      this.rightArm.rotation.x = -Math.PI / 2 + Math.sin(this.punchTimer * 15) * 0.5;
+      this.rightArm.rotation.x = -Math.PI * 0.5 + Math.sin(this.punchTimer * 18) * 0.6;
       if (this.punchTimer <= 0) {
-        this.isPunching = false;
+        this.punching = false;
       }
     } else {
       this.rightArm.rotation.x = 0;
     }
 
-    // Movement input relative to camera
-    const moveDir = new THREE.Vector3();
-    const camForward = new THREE.Vector3();
-    camera.getWorldDirection(camForward);
-    camForward.y = 0;
-    camForward.normalize();
+    // Determine movement direction vector aligned with camera orientation
+    const movementDir = new THREE.Vector3();
+    const forwardCamVec = new THREE.Vector3();
+    activeCamera.getWorldDirection(forwardCamVec);
+    forwardCamVec.y = 0;
+    forwardCamVec.normalize();
 
-    const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x);
+    const rightCamVec = new THREE.Vector3(-forwardCamVec.z, 0, forwardCamVec.x);
 
-    if (input.keys['KeyW'] || input.keys['ArrowUp']) moveDir.add(camForward);
-    if (input.keys['KeyS'] || input.keys['ArrowDown']) moveDir.sub(camForward);
-    if (input.keys['KeyD'] || input.keys['ArrowRight']) moveDir.add(camRight);
-    if (input.keys['KeyA'] || input.keys['ArrowLeft']) moveDir.sub(camRight);
+    const keys = inputState.keys || {};
+    if (keys['KeyW'] || keys['ArrowUp']) movementDir.add(forwardCamVec);
+    if (keys['KeyS'] || keys['ArrowDown']) movementDir.sub(forwardCamVec);
+    if (keys['KeyD'] || keys['ArrowRight']) movementDir.add(rightCamVec);
+    if (keys['KeyA'] || keys['ArrowLeft']) movementDir.sub(rightCamVec);
 
-    this.isRun = input.keys['ShiftLeft'] || input.keys['ShiftRight'];
-    const speed = this.isRun ? CONFIG.player.runSpeed : CONFIG.player.walkSpeed;
+    this.running = !!(keys['ShiftLeft'] || keys['ShiftRight']);
+    const activeSpeed = this.running ? CONFIG.player.runSpeed : CONFIG.player.walkSpeed;
 
-    if (moveDir.lengthSq() > 0) {
-      moveDir.normalize();
-      const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-      // Smooth rotation towards move direction
-      let diff = targetRotation - this.rotationY;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      this.rotationY += diff * Math.min(1, CONFIG.player.turnSpeed * dt);
+    if (movementDir.lengthSq() > 0) {
+      movementDir.normalize();
+      const targetAngle = Math.atan2(movementDir.x, movementDir.z);
+      
+      // Interpolate heading rotation smoothly
+      let angleDelta = targetAngle - this.rotationY;
+      while (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
+      while (angleDelta > Math.PI) angleDelta -= Math.PI * 2;
+      this.rotationY += angleDelta * Math.min(1, (CONFIG.player.turnSpeed || 10) * dt);
       this.group.rotation.y = this.rotationY;
 
-      this.velocity.x = moveDir.x * speed;
-      this.velocity.z = moveDir.z * speed;
+      this.velocity.x = movementDir.x * activeSpeed;
+      this.velocity.z = movementDir.z * activeSpeed;
 
-      // Walk animation (limb swinging)
-      this.walkCycle += dt * (this.isRun ? 14 : 9);
-      const swing = Math.sin(this.walkCycle) * 0.5;
-      this.leftLeg.rotation.x = swing;
-      this.rightLeg.rotation.x = -swing;
-      if (!this.isPunching) {
-        this.leftArm.rotation.x = -swing;
+      // Leg & arm stride animation cycle
+      this.strideCycle += dt * (this.running ? 15 : 10);
+      const strideVal = Math.sin(this.strideCycle) * 0.55;
+      this.leftLeg.rotation.x = strideVal;
+      this.rightLeg.rotation.x = -strideVal;
+      if (!this.punching) {
+        this.leftArm.rotation.x = -strideVal;
       }
     } else {
-      this.velocity.x *= 0.8;
-      this.velocity.z *= 0.8;
+      // Friction damping when idle
+      this.velocity.x *= 0.75;
+      this.velocity.z *= 0.75;
       this.leftLeg.rotation.x = 0;
       this.rightLeg.rotation.x = 0;
-      if (!this.isPunching) {
+      if (!this.punching) {
         this.leftArm.rotation.x = 0;
       }
     }
 
-    // Jump & Gravity
-    if (this.isGrounded && (input.keys['Space'] || input.edges['Space'])) {
-      this.velocity.y = 7.0;
-      this.isGrounded = false;
+    // Jump & gravity dynamics
+    if (this.grounded && (keys['Space'] || (inputState.edges && inputState.edges['Space']))) {
+      this.velocity.y = 7.5;
+      this.grounded = false;
     }
 
-    this.velocity.y -= 20.0 * dt; // gravity
+    this.velocity.y -= 22.0 * dt; // gravity pull
 
-    // Apply movement with collision sliding against buildings
-    const nextX = this.position.x + this.velocity.x * dt;
-    const nextZ = this.position.z + this.velocity.z * dt;
-    const nextY = this.position.y + this.velocity.y * dt;
+    // Calculate proposed next position
+    const candidateX = this.position.x + this.velocity.x * dt;
+    const candidateZ = this.position.z + this.velocity.z * dt;
+    const candidateY = this.position.y + this.velocity.y * dt;
 
-    // Check collisions
-    this.position.x = this.resolveCollisionX(nextX, this.position.z);
-    this.position.z = this.resolveCollisionZ(this.position.x, nextZ);
+    // Boundary constraints based on world configuration
+    const worldBounds = CONFIG.world;
+    const limitMax = (worldBounds.blocksX * worldBounds.blockSize) / 2 - 3;
+    
+    if (candidateX >= -limitMax && candidateX <= limitMax) {
+      this.position.x = candidateX;
+    }
+    if (candidateZ >= -limitMax && candidateZ <= limitMax) {
+      this.position.z = candidateZ;
+    }
 
-    // Ground collision
-    if (nextY <= 0.3) {
+    // Floor collision detection
+    if (candidateY <= 0.3) {
       this.position.y = 0.3;
       this.velocity.y = 0;
-      this.isGrounded = true;
+      this.grounded = true;
     } else {
-      this.position.y = nextY;
+      this.position.y = candidateY;
     }
 
     this.group.position.copy(this.position);
   }
 
-  resolveCollisionX(targetX, currentZ) {
-    // Check city bounds
-    const { blocksX, blocksZ, blockSize } = CONFIG.world;
-    const maxBound = (blocksX * blockSize) / 2 - 2;
-    if (targetX < -maxBound || targetX > maxBound) {
-      return this.position.x;
-    }
-    // Check building collisions (approximate based on world grid blocks)
-    // For simplicity, buildings are spaced by blockSize
-    return targetX;
-  }
-
-  resolveCollisionZ(currentX, targetZ) {
-    const { blocksX, blocksZ, blockSize } = CONFIG.world;
-    const maxBound = (blocksZ * blockSize) / 2 - 2;
-    if (targetZ < -maxBound || targetZ > maxBound) {
-      return this.position.z;
-    }
-    return targetZ;
-  }
-
   punch() {
-    if (!this.isPunching) {
-      this.isPunching = true;
-      this.punchTimer = 0.4;
+    if (!this.punching) {
+      this.punching = true;
+      this.punchTimer = 0.35;
       return true;
     }
     return false;
   }
 
   takeDamage(amount) {
-    if (this.invulnTimer > 0) return;
+    if (this.invulnCooldown > 0) return;
     this.health = Math.max(0, this.health - amount);
-    this.invulnTimer = 1.0;
+    this.invulnCooldown = 1.0;
     if (this.health <= 0) {
       this.isDead = true;
     }

@@ -1,20 +1,21 @@
-/**
- * Solmarina: Neon Heat - Main Boot & Core Game Loop (R1b14 Boot Only)
- * Initializes renderer, seeded procedural world, attract/title state with camera orbit,
- * URL parameter handling (shot & seed), and debug handle window.__game.
- */
-
 import * as THREE from '../vendor/three.min.js';
 import { RenderSystem } from './render.js';
 import { World } from './world.js';
 import { CONFIG } from './config.js';
 import { SeederRNG } from './random.js';
+import { Player } from './player.js';
 
-class NeonHeatBootApp {
+class NeonHeatGame {
   constructor() {
-    this.state = 'attract'; // 'attract' | 'playing'
+    this.state = 'attract'; // 'attract' | 'playing' | 'paused'
+    this.cameraMode = 0; // 0: standard chase, 1: far chase
     this.lastTime = performance.now();
     this.orbitAngle = 0;
+
+    this.input = {
+      keys: {},
+      edges: {}
+    };
 
     this.init();
   }
@@ -26,11 +27,17 @@ class NeonHeatBootApp {
     const seedParam = urlParams.get('seed');
     const seed = seedParam ? parseInt(seedParam, 10) : 1337;
 
-    // Initialize RNG, World, and RenderSystem
+    // Initialize RNG, World, RenderSystem, and Player
     this.rng = new SeederRNG(seed);
     this.renderer = new RenderSystem();
     this.world = new World(seed);
     this.renderer.scene.add(this.world.group);
+
+    this.player = new Player(this.world);
+    this.renderer.scene.add(this.player.group);
+
+    this.setupInput();
+    this.setupUIHandlers();
 
     // Expose debug handle for inspection and testing
     window.__game = {
@@ -38,9 +45,14 @@ class NeonHeatBootApp {
       getSeed: () => seed,
       getWorld: () => this.world,
       getRenderer: () => this.renderer,
+      getPlayer: () => this.player,
       debug: {
         forcePlay: () => {
           this.state = 'playing';
+        },
+        teleport: (x, y, z) => {
+          this.player.position.set(x, y, z);
+          this.player.group.position.set(x, y, z);
         },
         getWorldStats: () => ({
           roadsCount: this.world.roads.length,
@@ -59,15 +71,6 @@ class NeonHeatBootApp {
       }
     }
 
-    // Set up user interaction to start game from attract mode
-    window.addEventListener('keydown', () => {
-      if (this.state === 'attract') {
-        this.state = 'playing';
-        const overlay = document.getElementById('title-overlay');
-        if (overlay) overlay.style.display = 'none';
-      }
-    }, { once: true });
-
     // Start render loop
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
@@ -76,6 +79,55 @@ class NeonHeatBootApp {
     requestAnimationFrame(() => {
       window.__shotReady = true;
     });
+  }
+
+  startGame() {
+    this.state = 'playing';
+    const overlay = document.getElementById('title-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  setupInput() {
+    window.addEventListener('keydown', (e) => {
+      if (this.state === 'attract') {
+        this.startGame();
+        return;
+      }
+
+      if (e.code === 'Escape') {
+        if (this.state === 'playing') {
+          this.state = 'paused';
+        } else if (this.state === 'paused') {
+          this.state = 'playing';
+        }
+        return;
+      }
+
+      if (this.state !== 'playing') return;
+
+      this.input.keys[e.code] = true;
+      this.input.edges[e.code] = true;
+
+      if (e.code === 'KeyC') {
+        this.cameraMode = (this.cameraMode + 1) % 2;
+      }
+      if (e.code === 'KeyF') {
+        this.player.punch();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      this.input.keys[e.code] = false;
+    });
+  }
+
+  setupUIHandlers() {
+    const startBtn = document.getElementById('start-game-btn');
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        this.startGame();
+      });
+    }
   }
 
   animate(currentTime) {
@@ -95,19 +147,26 @@ class NeonHeatBootApp {
       const targetPos = new THREE.Vector3(camX, height, camZ);
       const centerTarget = new THREE.Vector3(0, 10, 0);
       
-      // Drive camera via public render system method
       this.renderer.snapCamera(targetPos, centerTarget);
-    } else {
-      // In playing / snapshot mode, maintain stable overhead view if no player/vehicle attached yet
-      const targetPos = new THREE.Vector3(0, 0, 0);
-      this.renderer.updateCamera(targetPos, 0, 1, deltaTime);
+    } else if (this.state === 'playing') {
+      // Update player movement and physics
+      this.player.update(deltaTime, this.input, this.renderer.camera);
+
+      // Drive third-person chase camera from player position and heading
+      this.renderer.updateCamera(this.player.position, this.player.rotationY, this.cameraMode, deltaTime);
+    } else if (this.state === 'paused') {
+      // Maintain camera stable while paused
+      this.renderer.updateCamera(this.player.position, this.player.rotationY, this.cameraMode, 0);
     }
 
     this.renderer.render();
+
+    // Clear key event edges
+    this.input.edges = {};
   }
 }
 
 // Instantiate bootstrap application on DOM content load
 window.addEventListener('DOMContentLoaded', () => {
-  new NeonHeatBootApp();
+  new NeonHeatGame();
 });
