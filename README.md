@@ -1,5 +1,9 @@
 # SOLMARINA: NEON HEAT
 
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/nuz69/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/nuz69/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
 An open-world crime game in the spirit of GTA 6, built for the **gta6-01**
 competition on [make.fun](https://make.fun) (deadline **24 Nov 2026, 22:00 WIB**).
 It plays offline in a desktop browser, from static files only — no network
