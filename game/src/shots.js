@@ -41,7 +41,7 @@ export function stageShot(game, name, seed) {
     game.player.group.visible = false;
 
     // Set camera chase pose behind active car
-    const camPos = sportsCar.position.clone().add(new THREE.Vector3(0, 4.5, -13));
+    const camPos = sportsCar.position.clone().add(new THREE.Vector3(0, 5, -16));
     const camTarget = sportsCar.position.clone().add(new THREE.Vector3(0, 1.6, 0));
     game.renderer.snapCamera(camPos, camTarget);
 
@@ -93,8 +93,9 @@ export function stageShot(game, name, seed) {
     if (m) {
       m.packagesCollected = 2;
       m.packagesNeeded = 3;
-      m.objectiveText = "Collect 3 hidden packages around the city (2/3).";
-      game.player.position.copy(m.targetPosition || new THREE.Vector3(-120, 0, 90));
+      m.objective = "Collect 3 hidden packages around the city (2/3)";
+      m.waypoint.set(-117, 0, 93);
+      game.player.position.set(-117, 0, 84);
       game.player.group.position.copy(game.player.position);
     }
     game.police.setWanted(0);
@@ -117,6 +118,8 @@ export function stageShot(game, name, seed) {
 
     game.police.setWanted(0);
     game.hud.showMissionComplete(10000, game.missions.getDebt());
+    const mcScreen = document.getElementById('mission-complete-screen');
+    if (mcScreen) mcScreen.style.background = 'transparent';
 
     const camPos = new THREE.Vector3(-400, 15, -35);
     const camTarget = new THREE.Vector3(-420, 2, -60);
@@ -140,6 +143,18 @@ export function stageShot(game, name, seed) {
     game.pedManager.update(dt, game.player.position, null);
     game.police.update(dt, game.player.position, game.activeCar, game.vehicleManager, game.player);
     game.missions.update(dt, game.player.position, game.activeCar, game.police.stars);
+  }
+
+  if (name === 'cover' || name === 'chase') {
+    game.missions.startMission(0);
+    game.player.health = 100;
+    if (name === 'cover') {
+      if (game.activeCar) game.activeCar.speed = 22;
+      game.police.setWanted(3);
+    } else if (name === 'chase') {
+      if (game.activeCar) game.activeCar.speed = 32;
+      game.police.setWanted(4);
+    }
   }
 
   game.shotFrozen = true;

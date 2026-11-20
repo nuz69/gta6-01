@@ -154,6 +154,7 @@ class NeonHeatGame {
       const currentTime = performance.now();
       const deltaTime = Math.min(0.1, (currentTime - this.lastTime) / 1000);
       this.lastTime = currentTime;
+      if (this.shotFrozen) return;
       this.tick(deltaTime);
     }, 16);
   }
