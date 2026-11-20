@@ -1,34 +1,67 @@
 /**
- * SOLMARINA: NEON HEAT - Save System (Re-authored version)
+ * SOLMARINA: NEON HEAT - Save System
  * Manages persistent game state in localStorage with robust validation and normalization.
+ *
+ * Validation is table-driven: each save field declares how a raw value is
+ * sanitized, so adding a field means adding one row instead of a new branch.
+ * The storage key, the default state, and every clamping/filtering rule are
+ * identical to the original implementation, keeping old saves compatible.
  */
 
-const DEFAULT_SAVE_STATE = Object.freeze({
-  cash: 5000,
-  debt: 50000,
-  currentMission: 1,
-  completedMissions: [],
-  respect: 0,
-  bestCar: 'standard',
-  sunCoinsCollected: []
-});
+const SAVE_KEY = 'solmarina_neon_heat_save_v1';
+
+function freshDefaults() {
+  return {
+    cash: 5000,
+    debt: 50000,
+    currentMission: 1,
+    completedMissions: [],
+    respect: 0,
+    bestCar: 'standard',
+    sunCoinsCollected: []
+  };
+}
+
+const isRealNumber = (value) => typeof value === 'number' && !isNaN(value);
+const isIdList = (value) =>
+  Array.isArray(value)
+    ? value.filter((item) => typeof item === 'number' || typeof item === 'string')
+    : null;
+
+// One rule per persisted field: how to turn a raw value into a valid one,
+// falling back to the default when the raw value is unusable.
+const FIELD_RULES = [
+  { key: 'cash', sanitize: (value, fallback) => (isRealNumber(value) ? Math.max(0, value) : fallback) },
+  { key: 'debt', sanitize: (value, fallback) => (isRealNumber(value) ? Math.max(0, value) : fallback) },
+  {
+    key: 'currentMission',
+    sanitize: (value, fallback) =>
+      isRealNumber(value) ? Math.max(1, Math.min(5, Math.floor(value))) : fallback,
+  },
+  {
+    key: 'completedMissions',
+    sanitize: (value, fallback) => isIdList(value) ?? [...fallback],
+  },
+  { key: 'respect', sanitize: (value, fallback) => (isRealNumber(value) ? Math.max(0, value) : fallback) },
+  {
+    key: 'bestCar',
+    sanitize: (value, fallback) =>
+      typeof value === 'string' && value.trim().length > 0 ? value : fallback,
+  },
+  {
+    key: 'sunCoinsCollected',
+    sanitize: (value, fallback) => isIdList(value) ?? [...fallback],
+  },
+];
 
 export class SaveSystem {
   constructor() {
-    this.key = 'solmarina_neon_heat_save_v1';
+    this.key = SAVE_KEY;
     this.data = this.load();
   }
 
   _createDefaultState() {
-    return {
-      cash: DEFAULT_SAVE_STATE.cash,
-      debt: DEFAULT_SAVE_STATE.debt,
-      currentMission: DEFAULT_SAVE_STATE.currentMission,
-      completedMissions: [...DEFAULT_SAVE_STATE.completedMissions],
-      respect: DEFAULT_SAVE_STATE.respect,
-      bestCar: DEFAULT_SAVE_STATE.bestCar,
-      sunCoinsCollected: [...DEFAULT_SAVE_STATE.sunCoinsCollected]
-    };
+    return freshDefaults();
   }
 
   _normalizeData(raw) {
@@ -36,41 +69,21 @@ export class SaveSystem {
     if (!raw || typeof raw !== 'object') {
       return defaults;
     }
+    const normalized = {};
+    for (const rule of FIELD_RULES) {
+      normalized[rule.key] = rule.sanitize(raw[rule.key], defaults[rule.key]);
+    }
+    return normalized;
+  }
 
-    const cash = typeof raw.cash === 'number' && !isNaN(raw.cash) ? Math.max(0, raw.cash) : defaults.cash;
-    const debt = typeof raw.debt === 'number' && !isNaN(raw.debt) ? Math.max(0, raw.debt) : defaults.debt;
-    const currentMission = typeof raw.currentMission === 'number' && !isNaN(raw.currentMission) 
-      ? Math.max(1, Math.min(5, Math.floor(raw.currentMission))) 
-      : defaults.currentMission;
-    
-    const respect = typeof raw.respect === 'number' && !isNaN(raw.respect) ? Math.max(0, raw.respect) : defaults.respect;
-    const bestCar = typeof raw.bestCar === 'string' && raw.bestCar.trim().length > 0 ? raw.bestCar : defaults.bestCar;
-
-    const completedMissions = Array.isArray(raw.completedMissions)
-      ? raw.completedMissions.filter(item => typeof item === 'number' || typeof item === 'string')
-      : [...defaults.completedMissions];
-
-    const sunCoinsCollected = Array.isArray(raw.sunCoinsCollected)
-      ? raw.sunCoinsCollected.filter(item => typeof item === 'string' || typeof item === 'number')
-      : [...defaults.sunCoinsCollected];
-
-    return {
-      cash,
-      debt,
-      currentMission,
-      completedMissions,
-      respect,
-      bestCar,
-      sunCoinsCollected
-    };
+  _readRaw() {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    return window.localStorage.getItem(this.key);
   }
 
   load() {
     try {
-      if (typeof window === 'undefined' || !window.localStorage) {
-        return this._createDefaultState();
-      }
-      const serialized = window.localStorage.getItem(this.key);
+      const serialized = this._readRaw();
       if (!serialized) {
         return this._createDefaultState();
       }

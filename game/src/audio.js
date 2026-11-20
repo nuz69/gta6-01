@@ -1,6 +1,11 @@
 /**
  * AudioSystem - Web Audio API procedural sound effects and engine/siren synthesizer
  * SOLMARINA: NEON HEAT
+ *
+ * The two looping oscillators (engine hum, police siren) share one setup
+ * helper, and the three one-shot effects share one blip helper driven by a
+ * small frequency-step table. All frequencies, gains, ramps, and timings
+ * are unchanged from the original implementation.
  */
 export class AudioSystem {
   constructor() {
@@ -14,6 +19,58 @@ export class AudioSystem {
     this.sirenTime = 0;
   }
 
+  /**
+   * Creates a silent looping oscillator wired to the destination and starts it.
+   * Returns the { osc, gain } pair.
+   */
+  _startLoopOsc(type, baseFreq) {
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+    gain.connect(this.ctx.destination);
+
+    const osc = this.ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+    osc.connect(gain);
+    osc.start();
+    return { osc, gain };
+  }
+
+  /**
+   * Plays a short synthesized blip.
+   * freqSteps: [[offsetSeconds, freqHz, 'set' | 'exp'], ...] — the first step
+   * always uses setValueAtTime; later steps ramp ('exp') or jump ('set').
+   */
+  _blip({ type, freqSteps, peak, duration }) {
+    if (this.muted || !this.initialized || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      freqSteps.forEach(([offset, freq, mode], index) => {
+        if (index === 0 || mode !== 'exp') {
+          osc.frequency.setValueAtTime(freq, now + offset);
+        } else {
+          osc.frequency.exponentialRampToValueAtTime(freq, now + offset);
+        }
+      });
+      gain.gain.setValueAtTime(peak, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    } catch (e) {}
+  }
+
+  /** Silences a loop gain immediately. */
+  _cutLoop(gainNode) {
+    if (gainNode && this.ctx) {
+      gainNode.gain.setValueAtTime(0, this.ctx.currentTime);
+    }
+  }
+
   init() {
     if (this.initialized) return;
     try {
@@ -23,26 +80,14 @@ export class AudioSystem {
       this.initialized = true;
 
       // Engine hum oscillator (sawtooth)
-      this.engineGain = this.ctx.createGain();
-      this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
-      this.engineGain.connect(this.ctx.destination);
-
-      this.engineOsc = this.ctx.createOscillator();
-      this.engineOsc.type = 'sawtooth';
-      this.engineOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
-      this.engineOsc.connect(this.engineGain);
-      this.engineOsc.start();
+      const engine = this._startLoopOsc('sawtooth', 55);
+      this.engineOsc = engine.osc;
+      this.engineGain = engine.gain;
 
       // Police siren oscillator (sine wave sweeping)
-      this.sirenGain = this.ctx.createGain();
-      this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
-      this.sirenGain.connect(this.ctx.destination);
-
-      this.sirenOsc = this.ctx.createOscillator();
-      this.sirenOsc.type = 'sine';
-      this.sirenOsc.frequency.setValueAtTime(600, this.ctx.currentTime);
-      this.sirenOsc.connect(this.sirenGain);
-      this.sirenOsc.start();
+      const siren = this._startLoopOsc('sine', 600);
+      this.sirenOsc = siren.osc;
+      this.sirenGain = siren.gain;
     } catch (err) {
       console.warn('WebAudio initialization failed:', err);
     }
@@ -54,12 +99,8 @@ export class AudioSystem {
       this.ctx.resume().catch(() => {});
     }
     if (this.muted) {
-      if (this.engineGain && this.ctx) {
-        this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
-      }
-      if (this.sirenGain && this.ctx) {
-        this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
-      }
+      this._cutLoop(this.engineGain);
+      this._cutLoop(this.sirenGain);
     }
   }
 
@@ -72,63 +113,36 @@ export class AudioSystem {
   }
 
   playClick() {
-    if (this.muted || !this.initialized || !this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(750, now);
-      osc.frequency.exponentialRampToValueAtTime(350, now + 0.04);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.04);
-    } catch (e) {}
+    this._blip({
+      type: 'sine',
+      freqSteps: [[0, 750, 'set'], [0.04, 350, 'exp']],
+      peak: 0.12,
+      duration: 0.04,
+    });
   }
 
   playPickup() {
-    if (this.muted || !this.initialized || !this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.setValueAtTime(880.00, now + 0.09); // A5
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } catch (e) {}
+    this._blip({
+      type: 'triangle',
+      freqSteps: [[0, 587.33, 'set'], [0.09, 880.00, 'set']], // D5 -> A5
+      peak: 0.18,
+      duration: 0.25,
+    });
   }
 
   playPunch() {
-    if (this.muted || !this.initialized || !this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(110, now);
-      osc.frequency.exponentialRampToValueAtTime(25, now + 0.12);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.12);
-    } catch (e) {}
+    this._blip({
+      type: 'square',
+      freqSteps: [[0, 110, 'set'], [0.12, 25, 'exp']],
+      peak: 0.25,
+      duration: 0.12,
+    });
   }
 
   updateEngine(speed, driving) {
     if (!this.initialized || !this.ctx || !this.engineGain || !this.engineOsc) return;
     if (this.muted || !driving) {
-      this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      this._cutLoop(this.engineGain);
       return;
     }
     const absSpeed = Math.abs(speed);
@@ -141,7 +155,7 @@ export class AudioSystem {
   updateSiren(policeActive, dt) {
     if (!this.initialized || !this.ctx || !this.sirenGain || !this.sirenOsc) return;
     if (this.muted || !policeActive) {
-      this.sirenGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      this._cutLoop(this.sirenGain);
       return;
     }
     this.sirenTime += (dt || 0.016) * 4.0;

@@ -1,6 +1,10 @@
 /**
  * Solmarina: Neon Heat - Seeded Pseudo-Random Number Generator (SeederRNG)
  * Mulberry32-based PRNG ensuring deterministic world generation and simulation.
+ *
+ * The mixing step lives in a private static scrambler so the public methods
+ * read as thin wrappers over one shared core; the produced sequence is
+ * bit-for-bit identical to the original implementation.
  */
 
 export class SeederRNG {
@@ -9,13 +13,21 @@ export class SeederRNG {
   }
 
   /**
+   * One mulberry32 mixing step over the running state.
+   * Advances nothing by itself; callers feed it the incremented seed.
+   */
+  static #scramble(t) {
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  /**
    * Generates the next pseudo-random float between 0 (inclusive) and 1 (exclusive).
    */
   next() {
-    let t = this.seed += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    this.seed += 0x6D2B79F5;
+    return SeederRNG.#scramble(this.seed);
   }
 
   /**
@@ -27,9 +39,11 @@ export class SeederRNG {
 
   /**
    * Returns a random integer between min and max (both inclusive).
+   * floor(next() * span) + min === floor(min + next() * span) for integer
+   * bounds, so this matches the original range-based formulation exactly.
    */
   int(min, max) {
-    return Math.floor(this.range(min, max + 1));
+    return Math.floor(this.next() * (max - min + 1)) + min;
   }
 
   /**
@@ -37,7 +51,7 @@ export class SeederRNG {
    */
   pick(arr) {
     if (!arr || arr.length === 0) return undefined;
-    return arr[this.int(0, arr.length - 1)];
+    return arr[Math.floor(this.next() * arr.length)];
   }
 
   /**
@@ -53,7 +67,9 @@ export class SeederRNG {
   shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = this.int(0, i);
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
     }
     return arr;
   }
