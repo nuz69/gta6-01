@@ -1,12 +1,26 @@
-// A working gta6-01 entry (Node 22, standard library only): the game is this directory's
-// game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
-// modules, no library and no network request), and the program hands it in. It copies game/ and
-// screenshots/ from beside this file to /output and writes /output/dossier.json, the summary the
-// judge reads, with the vendored make.fun library. Only the plumbing, not an open world: Block
-// Dodger, a plain 2D canvas game where a paddle dodges falling blocks and catches coins, with a
-// title screen, score, lives and levels, game over and restart, flat colours and no sound. Build
-// your own open-world crime game in its place (three.js or any library you vendor under game/),
-// put your 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and run it.
+// SOLMARINA: NEON HEAT — a working gta6-01 entry (Node 22, standard library only).
+//
+// The game is this directory's game/ folder: an open-world crime game in the spirit of
+// GTA 6, built on Three.js (vendored under game/vendor/), plain static files a desktop
+// browser loads offline (game/index.html and its ES modules, no library and no network
+// request), and this program hands it in. It copies game/ and screenshots/ from beside
+// this file to /output and writes /output/dossier.json, the summary the judge reads,
+// with the vendored make.fun library.
+//
+// The city is Solmarina, a neon coastal town of downtown streets, a waterfront, a port
+// and a beach. On foot you run, jump and punch through traffic and pedestrians; press E
+// near any car to steal it and drive (WASD or arrows to steer, Space as handbrake, C to
+// switch camera). Crime raises heat: a wanted system from 0 to 5 stars (thresholds
+// 0/20/45/70/90/100) sends police cars after you, and losing them drops the stars back
+// down. Five story missions for fixer Vera Kane pay $10,000 each: "First Fare" (drive a
+// client across town against the clock), "Package Run" (collect 3 packages downtown
+// while evading police), "Hot Wheels" (steal a sports car off the waterfront and lose a
+// 2-star wanted level), "The Getaway" (escape a 4-star dragnet across the downtown
+// bridges) and "Neon Heat" (the finale: rob the port vault and escape by boat). A HUD
+// with a minimap, cash, health and wanted stars tracks it all, progress saves to
+// localStorage, and procedural audio (engine, sirens, music) plays throughout. Put your
+// 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and
+// run it.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
