@@ -94,8 +94,8 @@ export function stageShot(game, name, seed) {
       m.packagesCollected = 2;
       m.packagesNeeded = 3;
       m.objective = "Collect 3 hidden packages around the city (2/3)";
-      m.waypoint.set(-117, 0, 93);
-      game.player.position.set(-117, 0, 84);
+      m.waypoint.set(70, 0, 20);
+      game.player.position.set(70, 0, 0);
       game.player.group.position.copy(game.player.position);
     }
     game.police.setWanted(0);
@@ -147,6 +147,10 @@ export function stageShot(game, name, seed) {
 
   if (name === 'cover' || name === 'chase') {
     game.missions.startMission(0);
+    // R3b3c: mission objects carry `desc`, not `objective` — without this
+    // updateHUD() would render the banner as "undefined".
+    const curM = game.missions.getCurrentMission();
+    if (curM) curM.objective = curM.desc;
     game.player.health = 100;
     if (name === 'cover') {
       if (game.activeCar) game.activeCar.speed = 22;
@@ -156,6 +160,27 @@ export function stageShot(game, name, seed) {
       game.police.setWanted(4);
     }
   }
+
+  // R3b3c: refresh HUD + minimap from the final staged state, before freezing.
+  // tick() early-returns once shotFrozen, so without this the frozen frame
+  // shows the initial HUD values. Payload identical to tick() in main.js.
+  const curMission = game.missions.getCurrentMission();
+  const waypoint = (curMission && curMission.active) ? curMission.targetPosition : null;
+  game.hud.updateHUD({
+    health: game.player.health,
+    cash: game.missions.getCash(),
+    debt: game.missions.getDebt(),
+    speed: game.activeCar ? game.activeCar.speed : 0,
+    policeStars: game.police.stars,
+    mission: curMission
+  });
+  game.hud.updateMinimap(
+    game.player.position,
+    game.activeCar ? game.activeCar.rotation : game.player.rotationY,
+    waypoint,
+    game.police.policeCars,
+    game.missions.sunCoins
+  );
 
   game.shotFrozen = true;
 

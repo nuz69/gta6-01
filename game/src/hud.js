@@ -109,7 +109,7 @@ export class HudSystem {
     if (!document.getElementById('mission-complete-screen')) {
       const mcScreen = document.createElement('div');
       mcScreen.id = 'mission-complete-screen';
-      mcScreen.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(8,12,20,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; color: #f8fafc; z-index: 50; pointer-events: auto; text-align: center; padding: 20px; backdrop-filter: blur(6px);';
+      mcScreen.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(8,12,20,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; color: #f8fafc; z-index: 50; pointer-events: auto; text-align: center; padding: 20px;';
       mcScreen.innerHTML = `
         <div style="font-size: 14px; font-weight: 800; color: #4ade80; letter-spacing: 3px; margin-bottom: 8px;">SUCCESS</div>
         <h2 id="mc-title" style="font-size: 40px; font-weight: 900; color: #fde047; margin: 0 0 15px 0; letter-spacing: 1px;">MISSION COMPLETE</h2>
